@@ -23,14 +23,12 @@ func main() {
 	}
 
 	for {
-		var data []byte
-		n, err := conn.Read(data)
+		data := make([]byte, 1024)
+		_, err := conn.Read(data)
 		if err != nil {
 			fmt.Println("Error reading: ", err.Error())
 			os.Exit(1)
 		}
-		if n > 0 {
-			conn.Write([]byte("+PONG\r\n"))
-		}
+		conn.Write([]byte("+PONG\r\n"))
 	}
 }
