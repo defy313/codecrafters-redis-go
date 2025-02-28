@@ -39,6 +39,7 @@ type command string
 
 const (
 	ECHO command = "ECHO"
+	PING command = "PING"
 )
 
 type DataType string
@@ -146,8 +147,11 @@ func MessageHandler(conn net.Conn) {
 			break
 		}
 
-		if strings.EqualFold(params[0], string(ECHO)) {
+		switch params[0] {
+		case string(ECHO):
 			conn.Write([]byte("$" + strconv.Itoa(len(params[1])) + "\r\n" + params[1] + "\r\n"))
+		case string(PING):
+			conn.Write([]byte("+PONG\r\n"))
 		}
 	}
 	conn.Close()
