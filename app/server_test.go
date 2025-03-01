@@ -23,6 +23,14 @@ func TestMessageHandler_MessageHandler(t *testing.T) {
 			"*1\r\n$4\r\nPING\r\n",
 			"+PONG\r\n",
 		},
+		{
+			"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n",
+			"+OK\r\n",
+		},
+		{
+			"*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n",
+			"$3\r\nbar\r\n",
+		},
 	}
 
 	serverConn, clientConn := net.Pipe()

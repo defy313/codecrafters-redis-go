@@ -40,6 +40,8 @@ type command string
 const (
 	ECHO command = "ECHO"
 	PING command = "PING"
+	SET  command = "SET"
+	GET  command = "GET"
 )
 
 type DataType string
@@ -147,13 +149,40 @@ func MessageHandler(conn net.Conn) {
 			break
 		}
 
-		switch params[0] {
+		switch strings.ToUpper(params[0]) {
 		case string(ECHO):
-			conn.Write([]byte("$" + strconv.Itoa(len(params[1])) + "\r\n" + params[1] + "\r\n"))
+			conn.Write([]byte("$" + strconv.Itoa(len(params[1])) + delimString + params[1] + delimString))
 		case string(PING):
 			conn.Write([]byte("+PONG\r\n"))
+		case string(SET):
+			err = setValue(params[1:])
+			if err != nil {
+				conn.Write([]byte("-ERR not enough arguments" + delimString))
+				continue
+			}
+			conn.Write([]byte("+OK\r\n"))
+		case string(GET):
+			val, ok := getValue(params[1])
+			if !ok {
+				conn.Write([]byte("$-1\r\n"))
+				return
+			}
+			conn.Write([]byte("$" + strconv.Itoa(len(val)) + delimString + val + delimString))
 		}
 	}
 	conn.Close()
-	return
+}
+
+// GetValue check if the key is present and returns if so
+func getValue(key string) (string, bool) {
+	return os.LookupEnv(key)
+}
+
+// SetValue sets the value
+func setValue(params []string) error {
+	if len(params) < 2 {
+		return errors.New("must provide at least key and value pair for set command")
+	}
+
+	return os.Setenv(params[0], params[1])
 }
