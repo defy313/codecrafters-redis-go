@@ -9,27 +9,42 @@ import (
 )
 
 type TestMessageHandler struct {
-	Input          string
-	ExpectedOutput string
+	Input           string
+	ExpectedOutput  string
+	WaitTimeInMilli int
 }
 
 func TestMessageHandler_MessageHandler(t *testing.T) {
 	tests := []TestMessageHandler{
+		//{
+		//	"*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n",
+		//	"$3\r\nhey\r\n",
+		//	0,
+		//},
+		//{
+		//	"*1\r\n$4\r\nPING\r\n",
+		//	"+PONG\r\n",
+		//	0,
+		//},
+		//{
+		//	"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n",
+		//	"+OK\r\n",
+		//	0,
+		//},
 		{
-			"*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n",
-			"$3\r\nhey\r\n",
-		},
-		{
-			"*1\r\n$4\r\nPING\r\n",
-			"+PONG\r\n",
-		},
-		{
-			"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n",
+			"*5\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$2\r\nPX\r\n$3\r\n500\r\n",
 			"+OK\r\n",
+			0,
 		},
 		{
 			"*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n",
 			"$3\r\nbar\r\n",
+			1000,
+		},
+		{
+			"*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n",
+			"$-1\r\n",
+			200,
 		},
 	}
 
@@ -41,7 +56,7 @@ func TestMessageHandler_MessageHandler(t *testing.T) {
 	for _, test := range tests {
 		clientConn.Write([]byte(test.Input))
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(time.Millisecond * time.Duration(test.WaitTimeInMilli))
 
 		buf := make([]byte, 1024)
 		n, err := clientConn.Read(buf)

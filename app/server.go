@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -42,6 +43,12 @@ const (
 	PING command = "PING"
 	SET  command = "SET"
 	GET  command = "GET"
+)
+
+type argument string
+
+const (
+	PX argument = "PX"
 )
 
 type DataType string
@@ -163,7 +170,8 @@ func MessageHandler(conn net.Conn) {
 			conn.Write([]byte("+OK\r\n"))
 		case string(GET):
 			val, ok := getValue(params[1])
-			if !ok {
+			expired := checkExpired(params[1])
+			if !ok || expired {
 				conn.Write([]byte("$-1\r\n"))
 				return
 			}
@@ -173,16 +181,49 @@ func MessageHandler(conn net.Conn) {
 	conn.Close()
 }
 
+func checkExpired(key string) bool {
+	expiryInMilli, exists := os.LookupEnv(key + "expiry")
+	if !exists {
+		return false
+	}
+	val, err := strconv.ParseInt(expiryInMilli, 10, 0)
+	if err != nil {
+		fmt.Printf("unable to read expiry for key: %s, err: %v", key, err)
+		return false
+	}
+
+	return time.Now().UnixMilli() > val
+}
+
 // GetValue check if the key is present and returns if so
 func getValue(key string) (string, bool) {
 	return os.LookupEnv(key)
 }
 
 // SetValue sets the value
-func setValue(params []string) error {
+func setValue(params []string) (err error) {
 	if len(params) < 2 {
 		return errors.New("must provide at least key and value pair for set command")
 	}
 
-	return os.Setenv(params[0], params[1])
+	os.Setenv(params[0], params[1])
+
+	// let's set the expiry using unix timestamp
+	idx := 2
+	for idx < len(params) {
+		switch strings.ToUpper(params[idx]) {
+		case string(PX):
+			expiryInMilli, err := strconv.Atoi(params[idx+1])
+			if err != nil {
+				return errors.New("expiry must be an integer value")
+			}
+			expiryTime := time.Now().Add(time.Millisecond * time.Duration(expiryInMilli)).UnixMilli()
+			os.Setenv(params[0]+"expiry", strconv.FormatInt(expiryTime, 10))
+			idx += 2
+		default:
+			idx++
+		}
+	}
+
+	return
 }
