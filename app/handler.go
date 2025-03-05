@@ -77,7 +77,7 @@ func MessageHandler(conn net.Conn) {
 				conn.Write([]byte("-ERR " + err.Error() + delimString))
 				continue
 			}
-			conn.Write(encodeArrayBulkStrings([]string{commands[2].Token, val}))
+			conn.Write(encodeArrayBulkStrings([]string{commands[3].Token, val}))
 		case string(GET):
 			val, ok := getValue(commands[2].Token)
 			if !ok {
