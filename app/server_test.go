@@ -16,21 +16,21 @@ type TestMessageHandler struct {
 
 func TestMessageHandler_MessageHandler(t *testing.T) {
 	tests := []TestMessageHandler{
-		//{
-		//	"*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n",
-		//	"$3\r\nhey\r\n",
-		//	0,
-		//},
-		//{
-		//	"*1\r\n$4\r\nPING\r\n",
-		//	"+PONG\r\n",
-		//	0,
-		//},
-		//{
-		//	"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n",
-		//	"+OK\r\n",
-		//	0,
-		//},
+		{
+			"*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n",
+			"$3\r\nhey\r\n",
+			0,
+		},
+		{
+			"*1\r\n$4\r\nPING\r\n",
+			"+PONG\r\n",
+			0,
+		},
+		{
+			"*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n",
+			"+OK\r\n",
+			0,
+		},
 		{
 			"*5\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$2\r\nPX\r\n$3\r\n500\r\n",
 			"+OK\r\n",

@@ -51,16 +51,6 @@ const (
 	PX argument = "PX"
 )
 
-type DataType string
-
-const (
-	Arrays        DataType = "Arrays"
-	Integers      DataType = "Integers"
-	BulkStrings   DataType = "BulkStrings"
-	SimpleErrors  DataType = "SimpleErrors"
-	SimpleStrings DataType = "SimpleStrings"
-)
-
 var dataTypeMap = map[uint8]DataType{
 	'*': Arrays,
 	':': Integers,
@@ -69,85 +59,11 @@ var dataTypeMap = map[uint8]DataType{
 	'+': SimpleStrings,
 }
 
-//var handlerByDataType = map[DataType]func(string, net.Conn) []string{
-//	BulkStrings: BulkStringsHandler,
-//	Arrays:      ArraysHandler,
-//}
-
-/*
-*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n
- */
-
-// ArraysHandler handler input of type Arrays
-func ArraysHandler(prevData string, reader *bufio.Reader) (params []string) {
-	size, err := strconv.Atoi(prevData[1:])
-	if err != nil {
-		fmt.Println("unable to figure out size of the array, err: ", err.Error())
-		return
-	}
-	// We have size number of elements
-	// each of which have to be handled here
-	for i := 0; i < size; i++ {
-		childParams, err := DecodeMessage(reader)
-		if err != nil {
-			return
-		}
-		params = append(params, childParams...)
-	}
-	return
-}
-
-// BulkStringsHandler handles input of type BulkString
-func BulkStringsHandler(prevData string, reader *bufio.Reader) (params []string) {
-	size, err := strconv.Atoi(prevData[1:])
-	if err != nil {
-		fmt.Println("unable to read the size of the string, err: ", err.Error())
-		return
-	}
-
-	// Adding 2 for reading the delimiter string
-	buf := make([]byte, size+2)
-	_, err = io.ReadFull(reader, buf)
-	if err != nil {
-		fmt.Println("unable to read bulk string, err: ", err.Error())
-		return
-	}
-
-	arg := strings.TrimSuffix(string(buf), delimString)
-	params = append(params, arg)
-	return
-}
-
-func DecodeMessage(reader *bufio.Reader) (params []string, err error) {
-	data, err := reader.ReadString(delimByte)
-	if err != nil {
-		return
-	}
-
-	// strip the delimiter from the data
-	data = strings.TrimSuffix(data, delimString)
-
-	// figure out the dataType
-	dataType, ok := dataTypeMap[data[0]]
-	if !ok {
-		fmt.Println("Unrecognized dataType marker: ", data[0])
-		return
-	}
-
-	if dataType == Arrays {
-		params = ArraysHandler(data, reader)
-	} else if dataType == BulkStrings {
-		params = BulkStringsHandler(data, reader)
-	}
-
-	return
-}
-
 // MessageHandler returns the decoded message as a slice of strings
 func MessageHandler(conn net.Conn) {
+	reader := bufio.NewReader(conn)
 	for {
-		reader := bufio.NewReader(conn)
-		params, err := DecodeMessage(reader)
+		commands, err := DecodeMessage(reader)
 		if errors.Is(err, io.EOF) {
 			fmt.Println("Client closed connection, exiting")
 			break
@@ -156,24 +72,36 @@ func MessageHandler(conn net.Conn) {
 			break
 		}
 
-		switch strings.ToUpper(params[0]) {
+		if commands[0].Type != Arrays {
+			// command is not an array of bulk strings
+			// check if it's just a PING
+			if commands[0].Type == SimpleStrings && commands[0].Token == string(PING) {
+				conn.Write([]byte("+PONG\r\n"))
+				continue
+			} else {
+				conn.Write([]byte("-ERR unknown command " + commands[0].Token + delimString))
+				continue
+			}
+		}
+
+		switch strings.ToUpper(commands[1].Token) {
 		case string(ECHO):
-			conn.Write([]byte("$" + strconv.Itoa(len(params[1])) + delimString + params[1] + delimString))
+			conn.Write([]byte("$" + strconv.Itoa(len(commands[2].Token)) + delimString + commands[2].Token + delimString))
 		case string(PING):
 			conn.Write([]byte("+PONG\r\n"))
 		case string(SET):
-			err = setValue(params[1:])
+			err = setValue(commands[1:])
 			if err != nil {
 				conn.Write([]byte("-ERR not enough arguments" + delimString))
 				continue
 			}
 			conn.Write([]byte("+OK\r\n"))
 		case string(GET):
-			val, ok := getValue(params[1])
-			expired := checkExpired(params[1])
+			val, ok := getValue(commands[2].Token)
+			expired := checkExpired(commands[2].Token)
 			if !ok || expired {
 				conn.Write([]byte("$-1\r\n"))
-				return
+				continue
 			}
 			conn.Write([]byte("$" + strconv.Itoa(len(val)) + delimString + val + delimString))
 		}
@@ -201,24 +129,24 @@ func getValue(key string) (string, bool) {
 }
 
 // SetValue sets the value
-func setValue(params []string) (err error) {
+func setValue(params []Command) (err error) {
 	if len(params) < 2 {
 		return errors.New("must provide at least key and value pair for set command")
 	}
 
-	os.Setenv(params[0], params[1])
+	os.Setenv(params[1].Token, params[2].Token)
 
 	// let's set the expiry using unix timestamp
-	idx := 2
+	idx := 3
 	for idx < len(params) {
-		switch strings.ToUpper(params[idx]) {
+		switch strings.ToUpper(params[idx].Token) {
 		case string(PX):
-			expiryInMilli, err := strconv.Atoi(params[idx+1])
+			expiryInMilli, err := strconv.Atoi(params[idx+1].Token)
 			if err != nil {
 				return errors.New("expiry must be an integer value")
 			}
 			expiryTime := time.Now().Add(time.Millisecond * time.Duration(expiryInMilli)).UnixMilli()
-			os.Setenv(params[0]+"expiry", strconv.FormatInt(expiryTime, 10))
+			os.Setenv(params[1].Token+"expiry", strconv.FormatInt(expiryTime, 10))
 			idx += 2
 		default:
 			idx++
