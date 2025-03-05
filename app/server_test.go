@@ -14,7 +14,7 @@ type TestMessageHandler struct {
 	WaitTimeInMilli int
 }
 
-func TestMessageHandler_MessageHandler(t *testing.T) {
+func runRedisTest(t testing.TB) {
 	tests := []TestMessageHandler{
 		{
 			"*2\r\n$4\r\nECHO\r\n$3\r\nhey\r\n",
@@ -66,5 +66,15 @@ func TestMessageHandler_MessageHandler(t *testing.T) {
 
 		response := string(buf[:n])
 		assert.Equal(t, test.ExpectedOutput, response, "Response should match expected value")
+	}
+}
+
+func TestMessageHandler_MessageHandler(t *testing.T) {
+	runRedisTest(t)
+}
+
+func BenchmarkRedisServer(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		runRedisTest(b)
 	}
 }
